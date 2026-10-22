@@ -1,14 +1,17 @@
 #!/bin/sh
 # Lemo-Opuscar skill: find or install the style library, then print its path.
-#   sh setup.sh                    library ready? (clone on first run, update later) → prints LIB=<path>
+# Digital Fennec fork: NO auto-update. The library is pinned to branch ayla-pinned of Digital-Fennec/lemo-opuscar.
+# Updates from upstream are manual: diff, re-scan, new GO from Hichem. Never add a fetch/reset here.
+#   sh setup.sh                    library ready? (clone on first run, never updates) → prints LIB=<path>
 #   sh setup.sh deps [voice] [music]
 #                                  install packages: core = Node packages, headless browser, Python core tier;
 #                                  voice = TTS and speech check (+ the English voice model); music = pluck.py (numba)
 #   sh setup.sh demo <slug>        add one style's demo source and poster to the library (reference only)
-# The library is a sparse clone of the main branch: guides, core/ tools and every STYLE.md. Big assets: tools/fetch.sh.
+# The library is a sparse clone of branch ayla-pinned: guides, core/ tools and every STYLE.md. Big assets: tools/fetch.sh.
 # LEMO_OPUSCAR_HOME = where the library lives (default: the clone you stand in, else ~/lemo-opuscar).
 set -e
-REPO=${LEMO_OPUSCAR_REPO:-https://github.com/lemomo-ai/lemo-opuscar.git}
+REPO=https://github.com/Digital-Fennec/lemo-opuscar.git
+BRANCH=ayla-pinned
 
 # 1. Which library: $LEMO_OPUSCAR_HOME, else the clone we are standing in, else ~/lemo-opuscar
 is_lib() { [ -f "$1/AGENTS.md" ] && [ -d "$1/core/render" ]; }
@@ -26,16 +29,13 @@ apply_sparse() {
   git -C "$LIB" sparse-checkout set --no-cone "$@" 2>/dev/null || git -C "$LIB" sparse-checkout disable || true
 }
 
-if [ "$(git -C "$LIB" config --get lemo.managed 2>/dev/null)" = true ]; then
-  # our own clone (nothing of the user's lives in it): match main, whatever happened upstream
-  [ "$(git -C "$LIB" remote get-url origin 2>/dev/null)" = "$REPO" ] || git -C "$LIB" remote set-url origin "$REPO"
-  if err=$(git -C "$LIB" fetch --quiet --depth 1 origin main 2>&1 && git -C "$LIB" reset --quiet --hard FETCH_HEAD 2>&1); then apply_sparse
-  else echo "! could not update $LIB (offline?); using the local copy. git: $err" | head -3; fi
-elif ! is_lib "$LIB"; then
+if is_lib "$LIB"; then
+  : # present: used as it is. No fetch, no reset (Digital Fennec rule: no auto-update path).
+else
   [ -e "$LIB" ] && [ -n "$(ls -A "$LIB" 2>/dev/null)" ] && { echo "✗ $LIB exists but is not the Lemo-Opuscar library. Set LEMO_OPUSCAR_HOME to another folder."; exit 1; }
   command -v git >/dev/null || { echo "✗ git is needed to download the library"; exit 1; }
   echo "↓ downloading the style library into $LIB"
-  git clone --quiet --depth 1 --filter=blob:none --sparse --branch main "$REPO" "$LIB" || { rm -rf "$LIB"; echo "✗ download failed (offline?)"; exit 1; }
+  git clone --quiet --depth 1 --filter=blob:none --sparse --branch "$BRANCH" "$REPO" "$LIB" || { rm -rf "$LIB"; echo "✗ download failed (offline?)"; exit 1; }
   apply_sparse
   git -C "$LIB" config lemo.managed true
 fi
@@ -63,7 +63,7 @@ case "$1" in
     cd "$LIB"
     command -v npm >/dev/null || { echo "✗ npm not found: install Node 20+ first"; exit 1; }
     if ! node_ok; then
-      npm install --no-audit --no-fund --loglevel=error
+      npm ci --ignore-scripts --no-audit --no-fund --loglevel=error   # exact lockfile, no install scripts
       # npm may rewrite package-lock.json; in our own clone put it back, so the checksum stays the same
       [ "$(git config --get lemo.managed 2>/dev/null)" = true ] && git checkout -q -- package.json package-lock.json 2>/dev/null || true
       sig package.json package-lock.json > node_modules/.lemo-ok
@@ -77,8 +77,8 @@ case "$1" in
     fi
     for t in $tiers; do
       py_ok "$t" && continue
-      if command -v uv >/dev/null; then uv pip install --quiet --python .venv/bin/python -r "$(req "$t")"
-      else .venv/bin/python -m pip install --quiet --disable-pip-version-check -r "$(req "$t")"; fi
+      if command -v uv >/dev/null; then uv pip install --quiet --require-hashes --python .venv/bin/python -r "$(req "$t")"
+      else .venv/bin/python -m pip install --quiet --disable-pip-version-check --require-hashes -r "$(req "$t")"; fi
       pysig "$(req "$t")" > ".venv/.lemo-$t"
     done
     case " $tiers " in *" voice "*) [ -f core/tts/kokoro-v1.0.onnx ] && [ -f core/tts/voices-v1.0.bin ] || sh tools/fetch.sh voice ;; esac

@@ -1,5 +1,7 @@
 # Paper-cut Lightbox — our demo
 
+> Digital Fennec fork: this demo used edge-tts (online, Microsoft) for its Mandarin voice. Our films never do: offline voices only (TECHNIQUE.md §4). Read this demo for technique only.
+
 One example among many. Don't reuse its story, arc, shots, props or timings.
 
 Demo: *一个月饼的相思 · A Mooncake's Longing* (121.8 s) · `paper-lantern.mp4` · source in [`demo/`](demo/) · engine: three.js 0.170 (WebGL, SSAA 2×, VSM soft shadows, custom DoF + bloom compositor), Canvas2D-drawn paper layers, headless Chrome frame capture.
